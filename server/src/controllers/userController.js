@@ -54,8 +54,18 @@ exports.getMyBooks = async (req, res) => {
         const user = await User.findById(req.user.userId)
             .populate('borrowedBooks')
             .populate('reservedBooks');
+        // Upewnij się, że każda książka ma pole dueDate (jeśli nie, wylicz na podstawie borrowTime + 30 dni)
+        const borrowedBooks = user.borrowedBooks.map(book => {
+            let dueDate = book.dueDate;
+            if (!dueDate && book.borrowTime) {
+                const borrowTime = new Date(book.borrowTime);
+                borrowTime.setDate(borrowTime.getDate() + 30);
+                dueDate = borrowTime;
+            }
+            return { ...book.toObject(), dueDate };
+        });
         res.json({
-            borrowedBooks: user.borrowedBooks,
+            borrowedBooks,
             reservedBooks: user.reservedBooks
         });
     } catch (error) {
@@ -103,13 +113,94 @@ exports.getAllUsers = async (req, res) => {
 exports.updateUserRole = async (req, res) => {
     try {
         const { role } = req.body;
-        const user = await User.findByIdAndUpdate(
-            req.params.id,
-            { role },
-            { new: true }
-        ).select('-password');
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
+        }
+        // Poprawna kolejność: jeśli user jest adminem, nie pozwól na zmianę roli
+        if (user.role === 'Admin') {
+            return res.status(403).json({ message: 'Nie można zmienić roli innemu administratorowi.' });
+        }
+        // Jeśli nie jest adminem, pozwól na zmianę roli
+        user.role = role;
+        await user.save();
         res.json(user);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }
-}; 
+};
+
+// Zmiana roli użytkownika po membershipID (Admin only)
+exports.updateUserRoleByMembershipId = async (req, res) => {
+    try {
+        const { membershipId, role } = req.body;
+        if (!membershipId || !role) {
+            return res.status(400).json({ message: 'membershipID i rola są wymagane.' });
+        }
+        const user = await User.findOne({ membershipId: membershipId.trim().toUpperCase() });
+        if (!user) {
+            return res.status(404).json({ message: 'Nie znaleziono użytkownika o podanym membershipID.' });
+        }
+        if (user.role === 'Admin') {
+            return res.status(403).json({ message: 'Nie można zmienić roli innemu administratorowi.' });
+        }
+        user.role = role;
+        await user.save();
+        res.json({ message: 'Rola została zmieniona!', user });
+    } catch (error) {
+        res.status(500).json({ message: 'Błąd serwera.' });
+    }
+};
+
+// Delete user account
+exports.deleteAccount = async (req, res) => {
+    try {
+        const { password } = req.body;
+        const user = await User.findById(req.user.userId);
+        if (!user) {
+            return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
+        }
+        const isMatch = await user.comparePassword(password);
+        if (!isMatch) {
+            return res.status(400).json({ message: 'Błędne hasło' });
+        }
+        // Zmień status książek Reserved/Borrowed na Available
+        await Book.updateMany(
+            { $or: [
+                { borrowedBy: user._id, status: 'Borrowed' },
+                { reservedBy: user._id, status: 'Reserved' }
+            ] },
+            {
+                $set: {
+                    status: 'Available',
+                    borrowedBy: null,
+                    reservedBy: null,
+                    borrowTime: null,
+                    reservationTime: null
+                }
+            }
+        );
+        // Usuń użytkownika
+        await User.findByIdAndDelete(user._id);
+        res.json({ message: 'Konto zostało usunięte' });
+    } catch (error) {
+        res.status(500).json({ message: 'Błąd serwera' });
+    }
+};
+
+// Wyszukiwanie użytkownika po membershipID (dla admina)
+exports.findByMembershipId = async (req, res) => {
+    try {
+        const { membershipId } = req.query;
+        if (!membershipId) {
+            return res.status(400).json({ message: 'Brak membershipID w zapytaniu.' });
+        }
+        const user = await User.findOne({ membershipId: membershipId.trim().toUpperCase() }).select('-password');
+        if (!user) {
+            return res.status(404).json({ message: 'Nie znaleziono użytkownika o podanym membershipID.' });
+        }
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ message: 'Błąd serwera.' });
+    }
+};

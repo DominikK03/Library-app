@@ -18,8 +18,7 @@ const bookSchema = new mongoose.Schema({
         required: true
     },
     description: {
-        type: String,
-        required: true
+        type: String
     },
     status: {
         type: String,
@@ -28,20 +27,32 @@ const bookSchema = new mongoose.Schema({
     },
     borrowedBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+        ref: 'User',
+        default: null
     },
     reservedBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+        ref: 'User',
+        default: null
     },
     borrowTime: {
-        type: Date
+        type: Date,
+        default: null
     },
     reservationTime: {
-        type: Date
+        type: Date,
+        default: null
+    },
+    dueDate: {
+        type: Date,
+        default: null
+    },
+    reservationExpires: {
+        type: Date,
+        default: null
     }
 }, {
     timestamps: true
 });
 
-module.exports = mongoose.model('Book', bookSchema); 
+module.exports = mongoose.model('Book', bookSchema);

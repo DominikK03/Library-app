@@ -46,9 +46,33 @@ const userSchema = new mongoose.Schema({
     reservedBooks: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Book'
-    }]
+    }],
+    debt: {
+        type: Number,
+        default: 0
+    }
 }, {
     timestamps: true
+});
+
+// Generate random membership ID
+function generateMembershipId() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let id = '';
+    for (let i = 0; i < 6; i++) {
+        id += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return id;
+}
+
+// Add membershipId field
+userSchema.add({
+    membershipId: {
+        type: String,
+        unique: true,
+        required: true,
+        default: generateMembershipId
+    }
 });
 
 // Hash password before saving
@@ -71,4 +95,4 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 
 const User = mongoose.model('User', userSchema);
 
-module.exports = User; 
+module.exports = User;

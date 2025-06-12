@@ -3,6 +3,16 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
+// Dodaj losowe membershipId jeśli nie istnieje
+function generateMembershipId() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let id = '';
+  for (let i = 0; i < 6; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return id;
+}
+
 const users = [
   {
     email: 'admin@example.com',
@@ -13,7 +23,8 @@ const users = [
     phoneNumber: '123456789',
     birthDate: new Date('1990-01-01'),
     borrowedBooks: [],
-    reservedBooks: []
+    reservedBooks: [],
+    membershipId: generateMembershipId()
   },
   {
     email: 'librarian@example.com',
@@ -24,7 +35,8 @@ const users = [
     phoneNumber: '987654321',
     birthDate: new Date('1992-05-15'),
     borrowedBooks: [],
-    reservedBooks: []
+    reservedBooks: [],
+    membershipId: generateMembershipId()
   },
   {
     email: 'user@example.com',
@@ -35,7 +47,8 @@ const users = [
     phoneNumber: '555666777',
     birthDate: new Date('1995-12-31'),
     borrowedBooks: [],
-    reservedBooks: []
+    reservedBooks: [],
+    membershipId: generateMembershipId()
   }
 ];
 
@@ -67,4 +80,4 @@ const seedUsers = async () => {
   }
 };
 
-seedUsers(); 
+seedUsers();

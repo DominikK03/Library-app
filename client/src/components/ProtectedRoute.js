@@ -3,7 +3,11 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 function ProtectedRoute({ children }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <div style={{ textAlign: 'center', marginTop: 40 }}>Ładowanie...</div>;
+  }
 
   if (!user) {
     return <Navigate to="/login" />;
@@ -12,4 +16,4 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
-export default ProtectedRoute; 
+export default ProtectedRoute;

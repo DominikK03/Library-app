@@ -2,52 +2,62 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '@mui/material/styles';
 
 const Container = styled.div`
-  max-width: 400px;
-  margin: 2rem auto;
-  padding: 2rem;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  max-width: 420px;
+  margin: 3rem auto;
+  padding: 2.5rem 2rem 2rem 2rem;
+  background: ${({ theme }) => theme.palette.background.paper};
+  border-radius: 16px;
+  box-shadow: 0 4px 24px 0 rgba(0,0,0,0.10);
+  margin-top: 100px;
+  transition: background 0.2s;
 `;
 
 const Title = styled.h1`
-  color: #2c3e50;
-  margin-bottom: 2rem;
+  color: ${({ theme }) => theme.palette.mode === 'dark' ? theme.palette.primary.main : '#1976d2'};
+  margin-bottom: 2.5rem;
   text-align: center;
+  font-size: 2.1rem;
+  font-weight: 700;
 `;
 
 const Form = styled.form`
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.5rem;
 `;
 
 const Input = styled.input`
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-
+  padding: 1rem;
+  border: 1.5px solid #bfc9d1;
+  border-radius: 6px;
+  font-size: 1.08rem;
+  background: ${({ theme }) => theme.palette.mode === 'dark' ? '#23272f' : '#f7fafd'};
+  color: ${({ theme }) => theme.palette.text.primary};
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
   &:focus {
     outline: none;
-    border-color: #3498db;
+    border-color: #1976d2;
+    background: ${({ theme }) => theme.palette.background.paper};
   }
 `;
 
 const Button = styled.button`
-  padding: 0.75rem;
-  background-color: #3498db;
+  padding: 0.9rem;
+  background-color: #1976d2;
   color: white;
   border: none;
-  border-radius: 4px;
-  font-size: 1rem;
+  border-radius: 6px;
+  font-size: 1.08rem;
+  font-weight: 600;
   cursor: pointer;
+  margin-top: 0.5rem;
+  box-shadow: 0 2px 8px 0 rgba(25, 118, 210, 0.08);
   transition: background-color 0.2s;
-
   &:hover {
-    background-color: #2980b9;
+    background-color: #115293;
   }
 `;
 
@@ -55,21 +65,24 @@ const ErrorMessage = styled.div`
   color: #e74c3c;
   margin-top: 1rem;
   text-align: center;
+  font-size: 1.05rem;
 `;
 
 const RegisterLink = styled(Link)`
   display: block;
   text-align: center;
-  margin-top: 1rem;
-  color: #3498db;
+  margin-top: 2.5rem;
+  color: #1976d2;
   text-decoration: none;
-
+  font-weight: 500;
+  font-size: 1.05rem;
   &:hover {
     text-decoration: underline;
   }
 `;
 
 function Login() {
+  const theme = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -87,8 +100,8 @@ function Login() {
   };
 
   return (
-    <Container>
-      <Title>Logowanie</Title>
+    <Container theme={theme}>
+      <Title theme={theme}>Logowanie</Title>
       <Form onSubmit={handleSubmit}>
         <Input
           type="email"
@@ -96,6 +109,7 @@ function Login() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
+          theme={theme}
         />
         <Input
           type="password"
@@ -103,6 +117,7 @@ function Login() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
+          theme={theme}
         />
         <Button type="submit">Zaloguj się</Button>
         {error && <ErrorMessage>{error}</ErrorMessage>}
@@ -114,4 +129,4 @@ function Login() {
   );
 }
 
-export default Login; 
+export default Login;

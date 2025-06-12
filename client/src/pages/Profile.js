@@ -1,118 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
-
-const Container = styled.div`
-  max-width: 800px;
-  margin: 2rem auto;
-  padding: 2rem;
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-`;
-
-const Title = styled.h1`
-  color: #2c3e50;
-  margin-bottom: 2rem;
-`;
-
-const InfoLabel = styled.div`
-  margin-bottom: 1rem;
-`;
-
-const Label = styled.span`
-  font-weight: bold;
-  color: #2c3e50;
-`;
-
-const Button = styled.button`
-  padding: 0.8rem 1.5rem;
-  background-color: #3498db;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  margin-top: 1rem;
-
-  &:hover {
-    background-color: #2980b9;
-  }
-
-  &:disabled {
-    background-color: #bdc3c7;
-    cursor: not-allowed;
-  }
-`;
-
-const Form = styled.form`
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-top: 2rem;
-`;
-
-const Input = styled.input`
-  padding: 0.8rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-
-  &:focus {
-    outline: none;
-    border-color: #3498db;
-  }
-`;
-
-const ErrorMessage = styled.div`
-  color: #e74c3c;
-  margin-top: 1rem;
-`;
-
-const SuccessMessage = styled.div`
-  color: #2ecc71;
-  margin-top: 1rem;
-`;
-
-const InfoSection = styled.div`
-  margin-bottom: 2rem;
-  padding: 1rem;
-  background-color: #f8f9fa;
-  border-radius: 4px;
-`;
-
-const InfoValue = styled.div`
-  color: #34495e;
-  margin-bottom: 1rem;
-`;
-
-const MembershipId = styled.div`
-  font-family: monospace;
-  font-size: 1.2rem;
-  color: #2c3e50;
-  background-color: #ecf0f1;
-  padding: 0.5rem;
-  border-radius: 4px;
-  margin: 1rem 0;
-`;
-
-const PasswordChangeSection = styled.div`
-  margin-top: 2rem;
-  padding: 1rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-`;
-
-const ToggleButton = styled(Button)`
-  background-color: ${props => props.isOpen ? '#e74c3c' : '#3498db'};
-  margin-bottom: 1rem;
-
-  &:hover {
-    background-color: ${props => props.isOpen ? '#c0392b' : '#2980b9'};
-  }
-`;
+import Container from '@mui/material/Container';
+import Typography from '@mui/material/Typography';
+import Box from '@mui/material/Box';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import Alert from '@mui/material/Alert';
+import Collapse from '@mui/material/Collapse';
+import Divider from '@mui/material/Divider';
+import Grid from '@mui/material/Grid';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
 
 const Profile = () => {
   const { user, updateUser } = useAuth();
@@ -133,6 +34,9 @@ const Profile = () => {
     confirmPassword: '',
   });
   const [isPasswordFormOpen, setIsPasswordFormOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     fetchProfile();
@@ -140,7 +44,7 @@ const Profile = () => {
 
   const fetchProfile = async () => {
     try {
-      const response = await axios.get('http://localhost:5001/api/users/profile');
+      const response = await axios.get('/api/users/profile');
       setProfile(response.data);
       setFormData({
         name: response.data.name,
@@ -148,185 +52,266 @@ const Profile = () => {
         phoneNumber: response.data.phoneNumber,
         birthDate: response.data.birthDate,
       });
-    } catch (error) {
-      setError('Nie udało się pobrać danych profilu');
+    } catch (err) {
+      setError('Nie udało się pobrać profilu');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handlePasswordChange = (e) => {
-    setPasswordData({
-      ...passwordData,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      await updateUser(formData);
-      setSuccess('Profil został zaktualizowany');
-      setError('');
-    } catch (err) {
-      setError('Wystąpił błąd podczas aktualizacji profilu');
-      setSuccess('');
+  const handleEdit = () => setIsEditing(true);
+  const handleCancel = () => {
+    setIsEditing(false);
+    setError('');
+    setSuccess('');
+    if (profile) {
+      setFormData({
+        name: profile.name,
+        surname: profile.surname,
+        phoneNumber: profile.phoneNumber,
+        birthDate: profile.birthDate,
+      });
     }
   };
 
-  const handlePasswordSubmit = async (e) => {
+  const handleChange = e => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async e => {
     e.preventDefault();
+    setError('');
+    setSuccess('');
+    try {
+      await axios.put('/api/users/profile', formData);
+      setSuccess('Profil został zaktualizowany!');
+      setIsEditing(false);
+      fetchProfile();
+    } catch (err) {
+      setError('Błąd podczas aktualizacji profilu');
+    }
+  };
+
+  const handlePasswordChange = e => {
+    setPasswordData({ ...passwordData, [e.target.name]: e.target.value });
+  };
+
+  const handlePasswordSubmit = async e => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setError('Nowe hasła nie są identyczne');
+      setError('Nowe hasło i potwierdzenie muszą być takie same');
       return;
     }
     try {
-      await axios.post('http://localhost:5001/api/users/change-password', {
-        currentPassword: passwordData.currentPassword,
-        newPassword: passwordData.newPassword,
-      });
-      setSuccess('Hasło zostało zmienione');
-      setError('');
-      setPasswordData({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: '',
-      });
+      await axios.put('/api/users/change-password', passwordData);
+      setSuccess('Hasło zostało zmienione!');
       setIsPasswordFormOpen(false);
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } catch (err) {
-      setError('Wystąpił błąd podczas zmiany hasła');
-      setSuccess('');
+      setError('Błąd podczas zmiany hasła');
     }
   };
 
-  if (loading) return <div>Ładowanie...</div>;
-  if (!profile) return <div>Nie znaleziono profilu</div>;
+  const handleOpenDeleteDialog = () => {
+    setDeleteDialogOpen(true);
+    setDeletePassword('');
+    setDeleteError('');
+  };
+  const handleCloseDeleteDialog = () => {
+    setDeleteDialogOpen(false);
+    setDeletePassword('');
+    setDeleteError('');
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleteError('');
+    try {
+      await axios.post('/api/users/delete-account', { password: deletePassword });
+      // Wyloguj użytkownika i przekieruj na stronę główną
+      localStorage.removeItem('token');
+      window.location.href = '/';
+    } catch (err) {
+      setDeleteError(err.response?.data?.message || 'Błędne hasło lub błąd serwera');
+    }
+  };
+
+  if (loading) return <Typography align="center">Ładowanie...</Typography>;
 
   return (
-    <Container>
-      <Title>Profil użytkownika</Title>
-      
-      <InfoSection>
-        <InfoLabel>Membership ID</InfoLabel>
-        <MembershipId>{user._id}</MembershipId>
-      </InfoSection>
-
-      {!isEditing ? (
-        <>
-          <InfoLabel>
-            <Label>Imię:</Label> {profile.name}
-          </InfoLabel>
-          <InfoLabel>
-            <Label>Nazwisko:</Label> {profile.surname}
-          </InfoLabel>
-          <InfoLabel>
-            <Label>Email:</Label> {profile.email}
-          </InfoLabel>
-          <InfoLabel>
-            <Label>Numer telefonu:</Label> {profile.phoneNumber}
-          </InfoLabel>
-          <InfoLabel>
-            <Label>Data urodzenia:</Label> {new Date(profile.birthDate).toLocaleDateString()}
-          </InfoLabel>
-          <Button onClick={() => setIsEditing(true)}>Edytuj profil</Button>
-        </>
-      ) : (
-        <Form onSubmit={handleSubmit}>
-          <Input
-            type="text"
-            name="name"
-            placeholder="Imię"
-            value={formData.name}
-            onChange={handleChange}
-            required
-          />
-          <Input
-            type="text"
-            name="surname"
-            placeholder="Nazwisko"
-            value={formData.surname}
-            onChange={handleChange}
-            required
-          />
-          <Input
-            type="tel"
-            name="phoneNumber"
-            placeholder="Numer telefonu"
-            value={formData.phoneNumber}
-            onChange={handleChange}
-            required
-          />
-          <Input
-            type="date"
-            name="birthDate"
-            value={formData.birthDate}
-            onChange={handleChange}
-            required
-          />
-          <Button type="submit">Zapisz zmiany</Button>
-          <Button type="button" onClick={() => setIsEditing(false)}>
-            Anuluj
-          </Button>
-        </Form>
-      )}
-
-      <PasswordChangeSection>
-        <ToggleButton
-          type="button"
-          onClick={() => setIsPasswordFormOpen(!isPasswordFormOpen)}
-          isOpen={isPasswordFormOpen}
+    <Container maxWidth="sm" sx={{ py: 4, mt: '80px' }}>
+      <Typography variant="h3" color="primary" gutterBottom align="center" fontWeight="bold">
+        Profil użytkownika
+      </Typography>
+      <Collapse in={!!success}><Alert severity="success" sx={{ mb: 2 }}>{success}</Alert></Collapse>
+      <Collapse in={!!error && !isEditing && !isPasswordFormOpen}><Alert severity="error" sx={{ mb: 2 }}>{error}</Alert></Collapse>
+      <Box sx={{ p: 3, bgcolor: 'background.paper', borderRadius: 2, boxShadow: 2, mb: 4 }}>
+        <Typography variant="h6" gutterBottom>Dane osobowe</Typography>
+        {!isEditing ? (
+          <>
+            <Box sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: '1fr 2fr' },
+              gap: 2,
+              alignItems: 'center',
+              mb: 2,
+              bgcolor: 'background.default', // zamiast stałego koloru
+              borderRadius: 2,
+              p: 2,
+              boxShadow: 1,
+              minHeight: 320,
+              position: 'relative'
+            }}>
+              <Typography sx={{ color: 'text.secondary', fontWeight: 500 }}>Imię:</Typography>
+              <Typography sx={{ fontWeight: 500 }}>{profile?.name}</Typography>
+              <Typography sx={{ color: 'text.secondary', fontWeight: 500 }}>Nazwisko:</Typography>
+              <Typography sx={{ fontWeight: 500 }}>{profile?.surname}</Typography>
+              <Typography sx={{ color: 'text.secondary', fontWeight: 500 }}>Telefon:</Typography>
+              <Typography sx={{ fontWeight: 500 }}>{profile?.phoneNumber}</Typography>
+              <Typography sx={{ color: 'text.secondary', fontWeight: 500 }}>Data urodzenia:</Typography>
+              <Typography sx={{ fontWeight: 500 }}>{profile?.birthDate && new Date(profile.birthDate).toLocaleDateString()}</Typography>
+              <Typography sx={{ color: 'text.secondary', fontWeight: 500 }}>Email:</Typography>
+              <Typography sx={{ fontWeight: 500 }}>{profile?.email}</Typography>
+              <Typography sx={{ color: 'text.secondary', fontWeight: 500 }}>Membership ID:</Typography>
+              <Box sx={{ fontFamily: 'monospace', fontSize: '1.1rem', bgcolor: 'background.paper', p: 1, borderRadius: 1, display: 'inline-block', fontWeight: 600, letterSpacing: 2 }}>
+                {profile?.membershipId || 'Brak'}
+              </Box>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-start', mt: 2, gap: 2 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={handleEdit}
+                sx={{ borderRadius: 2, fontWeight: 600, px: 3, boxShadow: 2, textTransform: 'none', letterSpacing: 1 }}
+                size="large"
+                disableElevation
+              >
+                Edytuj profil
+              </Button>
+            </Box>
+          </>
+        ) : (
+          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+            <TextField
+              label="Imię"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              fullWidth
+              sx={{ mb: 2 }}
+            />
+            <TextField
+              label="Nazwisko"
+              name="surname"
+              value={formData.surname}
+              onChange={handleChange}
+              fullWidth
+              sx={{ mb: 2 }}
+            />
+            <TextField
+              label="Telefon"
+              name="phoneNumber"
+              value={formData.phoneNumber}
+              onChange={handleChange}
+              fullWidth
+              sx={{ mb: 2 }}
+            />
+            <TextField
+              label="Data urodzenia"
+              name="birthDate"
+              type="date"
+              value={formData.birthDate ? formData.birthDate.substring(0, 10) : ''}
+              onChange={handleChange}
+              fullWidth
+              sx={{ mb: 2 }}
+              InputLabelProps={{ shrink: true }}
+            />
+            <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+              <Button variant="contained" color="primary" type="submit">Zapisz</Button>
+              <Button variant="outlined" color="secondary" onClick={handleCancel}>Anuluj</Button>
+            </Box>
+          </Box>
+        )}
+      </Box>
+      <Divider sx={{ my: 4 }} />
+      <Box sx={{ p: 3, bgcolor: 'background.paper', borderRadius: 2, boxShadow: 2 }}>
+        <Typography variant="h6" gutterBottom>Hasło</Typography>
+        <Button
+          variant={isPasswordFormOpen ? 'outlined' : 'contained'}
+          color={isPasswordFormOpen ? 'secondary' : 'primary'}
+          onClick={() => setIsPasswordFormOpen((v) => !v)}
+          sx={{ mb: 2, mr: 2 }}
         >
           {isPasswordFormOpen ? 'Anuluj zmianę hasła' : 'Zmień hasło'}
-        </ToggleButton>
-
-        {isPasswordFormOpen && (
-          <Form onSubmit={handlePasswordSubmit}>
-            <InfoLabel>Aktualne hasło</InfoLabel>
-            <Input
-              type="password"
+        </Button>
+        <Button
+          variant="outlined"
+          color="error"
+          onClick={handleOpenDeleteDialog}
+          sx={{ mb: 2, borderRadius: 2, fontWeight: 600, px: 3, textTransform: 'none', letterSpacing: 1 }}
+          size="large"
+        >
+          Usuń konto
+        </Button>
+        <Collapse in={!!error && isPasswordFormOpen && !isEditing}>
+          <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+        </Collapse>
+        <Collapse in={isPasswordFormOpen}>
+          <Box component="form" onSubmit={handlePasswordSubmit} sx={{ mt: 2 }}>
+            <TextField
+              label="Aktualne hasło"
               name="currentPassword"
+              type="password"
               value={passwordData.currentPassword}
               onChange={handlePasswordChange}
-              required
+              fullWidth
+              sx={{ mb: 2 }}
             />
-
-            <InfoLabel>Nowe hasło</InfoLabel>
-            <Input
-              type="password"
+            <TextField
+              label="Nowe hasło"
               name="newPassword"
+              type="password"
               value={passwordData.newPassword}
               onChange={handlePasswordChange}
-              required
-              minLength={6}
+              fullWidth
+              sx={{ mb: 2 }}
             />
-
-            <InfoLabel>Potwierdź nowe hasło</InfoLabel>
-            <Input
-              type="password"
+            <TextField
+              label="Potwierdź nowe hasło"
               name="confirmPassword"
+              type="password"
               value={passwordData.confirmPassword}
               onChange={handlePasswordChange}
-              required
-              minLength={6}
+              fullWidth
+              sx={{ mb: 2 }}
             />
-
-            <Button type="submit">Zmień hasło</Button>
-          </Form>
-        )}
-      </PasswordChangeSection>
-
-      {error && <ErrorMessage>{error}</ErrorMessage>}
-      {success && <SuccessMessage>{success}</SuccessMessage>}
+            <Button variant="contained" color="primary" type="submit">Zmień hasło</Button>
+          </Box>
+        </Collapse>
+        <Dialog open={deleteDialogOpen} onClose={handleCloseDeleteDialog}>
+          <DialogTitle>Potwierdź usunięcie konta</DialogTitle>
+          <DialogContent>
+            <Typography sx={{ mb: 2 }}>Aby usunąć konto, podaj swoje hasło:</Typography>
+            <TextField
+              label="Hasło"
+              type="password"
+              fullWidth
+              value={deletePassword}
+              onChange={e => setDeletePassword(e.target.value)}
+              sx={{ mb: 2 }}
+            />
+            {deleteError && <Alert severity="error">{deleteError}</Alert>}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseDeleteDialog} color="primary">Anuluj</Button>
+            <Button onClick={handleDeleteAccount} color="error" variant="contained">Usuń konto</Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
     </Container>
   );
 };
 
-export default Profile; 
+export default Profile;
+
