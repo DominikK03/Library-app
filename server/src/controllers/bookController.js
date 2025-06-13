@@ -1,24 +1,11 @@
+const BookService = require('../services/BookService');
 const Book = require('../models/Book');
 const User = require('../models/User');
 
 // Get all books
 exports.getAllBooks = async (req, res) => {
     try {
-        const { search, genre } = req.query;
-        let query = {};
-
-        if (search) {
-            query.$or = [
-                { name: { $regex: search, $options: 'i' } },
-                { author: { $regex: search, $options: 'i' } }
-            ];
-        }
-
-        if (genre) {
-            query.genre = genre;
-        }
-
-        const books = await Book.find(query);
+        const books = await BookService.getAllBooks(req.query);
         res.json(books);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
@@ -28,7 +15,7 @@ exports.getAllBooks = async (req, res) => {
 // Get single book
 exports.getBook = async (req, res) => {
     try {
-        const book = await Book.findById(req.params.id);
+        const book = await BookService.getBookById(req.params.id);
         if (!book) {
             return res.status(404).json({ message: 'Book not found' });
         }
@@ -41,15 +28,7 @@ exports.getBook = async (req, res) => {
 // Create book (Admin/Librarian only)
 exports.createBook = async (req, res) => {
     try {
-        const { name, author, genre, productionYear, description } = req.body;
-        const book = new Book({
-            name,
-            author,
-            genre,
-            productionYear,
-            description
-        });
-        await book.save();
+        const book = await BookService.createBook(req.body);
         res.status(201).json(book);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
@@ -59,12 +38,7 @@ exports.createBook = async (req, res) => {
 // Update book (Admin/Librarian only)
 exports.updateBook = async (req, res) => {
     try {
-        const { name, author, genre, productionYear, description } = req.body;
-        const book = await Book.findByIdAndUpdate(
-            req.params.id,
-            { name, author, genre, productionYear, description },
-            { new: true }
-        );
+        const book = await BookService.updateBook(req.params.id, req.body);
         if (!book) {
             return res.status(404).json({ message: 'Book not found' });
         }
@@ -77,7 +51,7 @@ exports.updateBook = async (req, res) => {
 // Delete book (Admin/Librarian only)
 exports.deleteBook = async (req, res) => {
     try {
-        const book = await Book.findByIdAndDelete(req.params.id);
+        const book = await BookService.deleteBook(req.params.id);
         if (!book) {
             return res.status(404).json({ message: 'Book not found' });
         }
@@ -90,27 +64,13 @@ exports.deleteBook = async (req, res) => {
 // Reserve book
 exports.reserveBook = async (req, res) => {
     try {
-        const book = await Book.findById(req.params.id);
-        if (!book) {
+        const book = await BookService.reserveBook(req.params.id, req.user.userId);
+        if (book === null) {
             return res.status(404).json({ message: 'Book not found' });
         }
-
-        if (book.status !== 'Available') {
+        if (book === false) {
             return res.status(400).json({ message: 'Book is not available' });
         }
-
-        book.status = 'Reserved';
-        book.reservedBy = req.user.userId;
-        book.reservationTime = new Date();
-        // Ustaw czas wygaśnięcia rezerwacji na 24h
-        book.reservationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-        await book.save();
-
-        // Add to user's reserved books
-        await User.findByIdAndUpdate(req.user.userId, {
-            $push: { reservedBooks: book._id }
-        });
-
         res.json(book);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
@@ -120,33 +80,16 @@ exports.reserveBook = async (req, res) => {
 // Borrow book
 exports.borrowBook = async (req, res) => {
     try {
-        const book = await Book.findById(req.params.id);
-        if (!book) {
+        const book = await BookService.borrowBook(req.params.id, req.user.userId);
+        if (book === null) {
             return res.status(404).json({ message: 'Book not found' });
         }
-
-        if (book.status !== 'Available' && book.status !== 'Reserved') {
+        if (book === false) {
             return res.status(400).json({ message: 'Book is not available' });
         }
-
-        // Check if user has reserved this book
-        if (book.status === 'Reserved' && book.reservedBy.toString() !== req.user.userId) {
+        if (book === 'forbidden') {
             return res.status(403).json({ message: 'Book is reserved by another user' });
         }
-
-        book.status = 'Borrowed';
-        book.borrowedBy = req.user.userId;
-        book.borrowTime = new Date();
-        book.reservedBy = null;
-        book.reservationTime = null;
-        await book.save();
-
-        // Update user's books
-        await User.findByIdAndUpdate(req.user.userId, {
-            $push: { borrowedBooks: book._id },
-            $pull: { reservedBooks: book._id }
-        });
-
         res.json(book);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
@@ -156,25 +99,13 @@ exports.borrowBook = async (req, res) => {
 // Return book
 exports.returnBook = async (req, res) => {
     try {
-        const book = await Book.findById(req.params.id);
-        if (!book) {
+        const book = await BookService.returnBook(req.params.id, req.user.userId);
+        if (book === null) {
             return res.status(404).json({ message: 'Book not found' });
         }
-
-        if (book.status !== 'Borrowed' || book.borrowedBy.toString() !== req.user.userId) {
+        if (book === false) {
             return res.status(400).json({ message: 'Book is not borrowed by you' });
         }
-
-        book.status = 'Available';
-        book.borrowedBy = null;
-        book.borrowTime = null;
-        await book.save();
-
-        // Update user's books
-        await User.findByIdAndUpdate(req.user.userId, {
-            $pull: { borrowedBooks: book._id }
-        });
-
         res.json(book);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
@@ -187,24 +118,14 @@ exports.extendBorrow = async (req, res) => {
         const bookId = req.params.id;
         const { days } = req.body;
         const userId = req.user.id;
-        if (!days || days < 1) {
+        const result = await BookService.extendBorrow(bookId, userId, days);
+        if (result && result.error === 'invalid_days') {
             return res.status(400).json({ message: 'Podaj poprawną liczbę dni' });
         }
-        const book = await Book.findById(bookId);
-        if (!book || String(book.borrowedBy) !== String(userId)) {
+        if (!result) {
             return res.status(404).json({ message: 'Nie znaleziono wypożyczonej książki' });
         }
-        // Ustal nową datę końca wypożyczenia
-        const now = new Date();
-        let newDueDate = book.dueDate && book.dueDate > now ? new Date(book.dueDate) : now;
-        newDueDate.setDate(newDueDate.getDate() + days);
-        book.dueDate = newDueDate;
-        await book.save();
-        // Zwiększ zadłużenie użytkownika
-        const user = await User.findById(userId);
-        user.debt += days;
-        await user.save();
-        res.json({ message: 'Przedłużono wypożyczenie', dueDate: book.dueDate, debt: user.debt });
+        res.json({ message: 'Przedłużono wypożyczenie', dueDate: result.dueDate, debt: result.debt });
     } catch (error) {
         res.status(500).json({ message: 'Błąd serwera' });
     }
@@ -214,28 +135,19 @@ exports.extendBorrow = async (req, res) => {
 exports.getReservedBooksByUser = async (req, res) => {
     try {
         const { email } = req.query;
-        console.log('Otrzymany email:', email);
-        if (!email) {
-            console.error('Brak emaila w zapytaniu');
+        const result = await BookService.getReservedBooksByUserEmail(email);
+        if (result.error === 'no_email') {
             return res.status(400).json({ message: 'Podaj adres email' });
         }
-        const searchEmail = email.trim().toLowerCase();
-        const user = await User.findOne({ email: searchEmail });
-        console.log('Znaleziony user:', user);
-        if (!user) {
-            console.error('Nie znaleziono użytkownika o emailu:', searchEmail);
+        if (result.error === 'user_not_found') {
             return res.status(404).json({ message: 'Nie znaleziono użytkownika o podanym adresie email.' });
         }
-        if (user.role !== 'User') {
-            console.error('Użytkownik nie jest czytelnikiem:', user.email);
+        if (result.error === 'not_reader') {
             return res.status(400).json({ message: 'Podany użytkownik nie jest czytelnikiem.' });
         }
-        const books = await Book.find({ reservedBy: user._id, status: 'Reserved' });
-        console.log('Zarezerwowane książki:', books);
-        res.json({ books, user });
+        res.json(result);
     } catch (error) {
-        console.error('Błąd w getReservedBooksByUser:', error, error.stack);
-        res.status(500).json({ message: 'Błąd serwera: ' + error.message });
+        res.status(500).json({ message: 'Błąd serwera' });
     }
 };
 
@@ -243,49 +155,62 @@ exports.getReservedBooksByUser = async (req, res) => {
 exports.getReservedBooksByMembershipId = async (req, res) => {
     try {
         const { membershipId } = req.body;
-        if (!membershipId) {
+        const result = await BookService.getReservedBooksByMembershipId(membershipId);
+        if (result.error === 'no_membershipId') {
             return res.status(400).json({ message: 'Podaj membershipID' });
         }
-        const user = await User.findOne({ membershipId: membershipId.trim().toUpperCase() });
-        if (!user) {
+        if (result.error === 'user_not_found') {
             return res.status(404).json({ message: 'Nie znaleziono użytkownika o podanym membershipID.' });
         }
-        if (user.role !== 'User') {
+        if (result.error === 'not_reader') {
             return res.status(400).json({ message: 'Podany użytkownik nie jest czytelnikiem.' });
         }
-        const books = await Book.find({ reservedBy: user._id, status: 'Reserved' });
-        res.json({ books, user });
+        res.json(result);
     } catch (error) {
-        res.status(500).json({ message: 'Błąd serwera: ' + error.message });
+        res.status(500).json({ message: 'Błąd serwera' });
     }
 };
 
 // Librarian: zmień status z Reserved na Borrowed i ustaw borrowTime
 exports.librarianBorrowBook = async (req, res) => {
     try {
-        const book = await Book.findById(req.params.id);
-        if (!book) {
+        const result = await BookService.librarianBorrowBook(req.params.id);
+        if (result.error === 'not_found') {
             return res.status(404).json({ message: 'Nie znaleziono książki' });
         }
-        if (book.status !== 'Reserved' || !book.reservedBy) {
+        if (result.error === 'not_reserved') {
             return res.status(400).json({ message: 'Książka nie jest zarezerwowana' });
         }
-        // Przenieś rezerwację na wypożyczenie
-        const userId = book.reservedBy;
-        book.status = 'Borrowed';
-        book.borrowTime = new Date();
-        book.borrowedBy = userId;
-        book.reservedBy = null;
-        book.reservationTime = null;
-        book.reservationExpires = null;
-        await book.save();
-        // Zaktualizuj użytkownika: usuń z reservedBooks, dodaj do borrowedBooks
-        await User.findByIdAndUpdate(userId, {
-            $pull: { reservedBooks: book._id },
-            $push: { borrowedBooks: book._id }
-        });
-        res.json(book);
+        if (result.error === 'user_not_found') {
+            return res.status(404).json({ message: 'Nie znaleziono użytkownika' });
+        }
+        if (result.error === 'server_error') {
+            return res.status(500).json({ message: 'Błąd serwera', details: result.details });
+        }
+        // Sukces: zwróć aktualny stan książki i użytkownika
+        res.json(result);
     } catch (error) {
         res.status(500).json({ message: 'Błąd serwera' });
+    }
+};
+
+// Pobierz książki wypożyczone i zarezerwowane przez aktualnego użytkownika
+exports.getMyBooks = async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId) {
+            return res.status(401).json({ message: 'Brak autoryzacji użytkownika (userId nie znaleziony w tokenie JWT)' });
+        }
+        const borrowedBooks = await Book.find({
+            borrowedBy: userId,
+            status: 'Borrowed'
+        });
+        const reservedBooks = await Book.find({
+            reservedBy: userId,
+            status: 'Reserved'
+        });
+        res.json({ borrowedBooks, reservedBooks });
+    } catch (error) {
+        res.status(500).json({ message: 'Błąd serwera', error: error.message });
     }
 };

@@ -1,3 +1,4 @@
+const AuthService = require('../services/AuthService');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
@@ -5,42 +6,12 @@ const User = require('../models/User');
 exports.register = async (req, res) => {
     try {
         const { email, password, name, surname } = req.body;
-
-        // Check if user already exists
-        let user = await User.findOne({ email });
-        if (user) {
+        const result = await AuthService.register({ email, password, name, surname });
+        if (result.error === 'user_exists') {
             return res.status(400).json({ message: 'Użytkownik o podanym adresie email już istnieje' });
         }
-
-        // Create new user with only required fields
-        user = new User({
-            email,
-            password,
-            name,
-            surname
-        });
-
-        await user.save();
-
-        // Create token
-        const token = jwt.sign(
-            { userId: user._id, role: user.role },
-            process.env.JWT_SECRET,
-            { expiresIn: '24h' }
-        );
-
-        res.status(201).json({
-            token,
-            user: {
-                id: user._id,
-                email: user.email,
-                role: user.role,
-                name: user.name,
-                surname: user.surname
-            }
-        });
+        res.status(201).json(result);
     } catch (error) {
-        console.error('Registration error:', error);
         if (error.name === 'ValidationError') {
             return res.status(400).json({ 
                 message: 'Błąd walidacji danych',
@@ -55,38 +26,12 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
     try {
         const { email, password } = req.body;
-
-        // Check if user exists
-        const user = await User.findOne({ email });
-        if (!user) {
+        const result = await AuthService.login({ email, password });
+        if (result.error === 'invalid_credentials') {
             return res.status(400).json({ message: 'Nieprawidłowy email lub hasło' });
         }
-
-        // Check password
-        const isMatch = await user.comparePassword(password);
-        if (!isMatch) {
-            return res.status(400).json({ message: 'Nieprawidłowy email lub hasło' });
-        }
-
-        // Create token
-        const token = jwt.sign(
-            { userId: user._id, role: user.role },
-            process.env.JWT_SECRET,
-            { expiresIn: '24h' }
-        );
-
-        res.json({
-            token,
-            user: {
-                id: user._id,
-                email: user.email,
-                role: user.role,
-                name: user.name,
-                surname: user.surname
-            }
-        });
+        res.json(result);
     } catch (error) {
-        console.error('Login error:', error);
         res.status(500).json({ message: 'Błąd serwera' });
     }
 };
@@ -94,10 +39,9 @@ exports.login = async (req, res) => {
 // Get current user
 exports.getCurrentUser = async (req, res) => {
     try {
-        const user = await User.findById(req.user.userId).select('-password');
+        const user = await AuthService.getCurrentUser(req.user.userId);
         res.json(user);
     } catch (error) {
-        console.error('Get current user error:', error);
         res.status(500).json({ message: 'Błąd serwera' });
     }
-}; 
+};

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import { fetchMyBooks as fetchMyBooksService, extendBorrow } from '../services/bookService';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
 import Grid from '@mui/material/Grid';
@@ -30,14 +30,24 @@ const MyBooks = () => {
   const [extendSuccess, setExtendSuccess] = useState('');
 
   useEffect(() => {
-    fetchMyBooks();
+    fetchBooks();
+    // Dodaj nasłuchiwanie na widoczność strony (odśwież dane po powrocie na zakładkę)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchBooks();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
-  const fetchMyBooks = async () => {
+  const fetchBooks = async () => {
     try {
-      const response = await axios.get('/api/users/my-books');
-      setBorrowedBooks(response.data.borrowedBooks);
-      setReservedBooks(response.data.reservedBooks);
+      const data = await fetchMyBooksService();
+      setBorrowedBooks(data.borrowedBooks);
+      setReservedBooks(data.reservedBooks);
     } catch (error) {
       setError('Nie udało się pobrać listy książek');
     } finally {
@@ -74,11 +84,12 @@ const MyBooks = () => {
     setExtendError('');
     setExtendSuccess('');
     try {
-      await axios.post(`/api/books/${extendBookId}/extend`, { days: extendDays });
-      setExtendSuccess('Wypożyczenie przedłużone!');
-      fetchMyBooks();
-    } catch (err) {
-      setExtendError('Błąd podczas przedłużania wypożyczenia');
+      await extendBorrow(extendBookId, extendDays);
+      setExtendSuccess('Przedłużono wypożyczenie!');
+      fetchBooks();
+      setExtendDialogOpen(false);
+    } catch (error) {
+      setExtendError('Błąd przedłużania wypożyczenia');
     } finally {
       setExtendLoading(false);
     }

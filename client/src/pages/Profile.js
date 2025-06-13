@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { fetchProfile, updateProfile, changePassword, deleteAccount } from '../services/userService';
 import { useAuth } from '../contexts/AuthContext';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
@@ -39,21 +39,21 @@ const Profile = () => {
   const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
-    fetchProfile();
+    fetchProfileData();
   }, []);
 
-  const fetchProfile = async () => {
+  const fetchProfileData = async () => {
     try {
-      const response = await axios.get('/api/users/profile');
-      setProfile(response.data);
+      const data = await fetchProfile();
+      setProfile(data);
       setFormData({
-        name: response.data.name,
-        surname: response.data.surname,
-        phoneNumber: response.data.phoneNumber,
-        birthDate: response.data.birthDate,
+        name: data.name,
+        surname: data.surname,
+        phoneNumber: data.phoneNumber || '',
+        birthDate: data.birthDate || '',
       });
     } catch (err) {
-      setError('Nie udało się pobrać profilu');
+      setError('Błąd pobierania profilu');
     } finally {
       setLoading(false);
     }
@@ -83,12 +83,12 @@ const Profile = () => {
     setError('');
     setSuccess('');
     try {
-      await axios.put('/api/users/profile', formData);
-      setSuccess('Profil został zaktualizowany!');
+      const updated = await updateProfile(formData);
+      setProfile(updated);
+      setSuccess('Profil zaktualizowany!');
       setIsEditing(false);
-      fetchProfile();
     } catch (err) {
-      setError('Błąd podczas aktualizacji profilu');
+      setError('Błąd aktualizacji profilu');
     }
   };
 
@@ -101,16 +101,16 @@ const Profile = () => {
     setError('');
     setSuccess('');
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setError('Nowe hasło i potwierdzenie muszą być takie same');
+      setError('Nowe hasła nie są zgodne');
       return;
     }
     try {
-      await axios.put('/api/users/change-password', passwordData);
-      setSuccess('Hasło zostało zmienione!');
+      await changePassword(passwordData);
+      setSuccess('Hasło zmienione!');
       setIsPasswordFormOpen(false);
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } catch (err) {
-      setError('Błąd podczas zmiany hasła');
+      setError('Błąd zmiany hasła');
     }
   };
 
@@ -128,12 +128,10 @@ const Profile = () => {
   const handleDeleteAccount = async () => {
     setDeleteError('');
     try {
-      await axios.post('/api/users/delete-account', { password: deletePassword });
-      // Wyloguj użytkownika i przekieruj na stronę główną
-      localStorage.removeItem('token');
-      window.location.href = '/';
+      await deleteAccount(deletePassword);
+      window.location.href = '/login';
     } catch (err) {
-      setDeleteError(err.response?.data?.message || 'Błędne hasło lub błąd serwera');
+      setDeleteError('Błędne hasło lub błąd serwera');
     }
   };
 
@@ -314,4 +312,3 @@ const Profile = () => {
 };
 
 export default Profile;
-

@@ -55,11 +55,7 @@ const users = [
 const seedUsers = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
-    console.log('Connected to MongoDB');
-
-    // Usuń wszystkich istniejących użytkowników
     await User.deleteMany({});
-    console.log('Deleted existing users');
 
     // Hashuj hasła i dodaj użytkowników
     const hashedUsers = await Promise.all(
@@ -70,10 +66,7 @@ const seedUsers = async () => {
     );
 
     await User.insertMany(hashedUsers);
-    console.log('Added sample users');
-
-    console.log('Database seeded successfully');
-    process.exit(0);
+    await mongoose.disconnect();
   } catch (error) {
     console.error('Error seeding database:', error);
     process.exit(1);

@@ -22,9 +22,10 @@ app.use('/api/books', bookRoutes);
 app.use('/api/users', userRoutes);
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+mongoose
+  .connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => {})
+  .catch((err) => {});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -33,6 +34,4 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-}); 
+app.listen(PORT, () => {});

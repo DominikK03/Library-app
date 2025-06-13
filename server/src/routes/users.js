@@ -18,5 +18,9 @@ router.put('/:id/role', auth, checkRole(['Admin']), userController.updateUserRol
 router.get('/', auth, checkRole(['Admin']), userController.findByMembershipId);
 // Endpoint do zmiany roli po membershipID
 router.put('/change-role', auth, checkRole(['Admin']), userController.updateUserRoleByMembershipId);
+// Bibliotekarz: pobierz wypożyczone książki użytkownika po membershipId
+router.get('/borrowed-books-by-membership/:membershipId', auth, checkRole(['Librarian', 'Admin']), userController.getBorrowedBooksByMembershipId);
+// Bibliotekarz: zwrot książki
+router.post('/return-book/:bookId', auth, checkRole(['Librarian', 'Admin']), userController.librarianReturnBook);
 
 module.exports = router;

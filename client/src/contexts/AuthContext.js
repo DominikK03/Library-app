@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import { login as loginService, register as registerService, fetchUser as fetchUserService, logout as logoutService } from '../services/authService';
 
 const AuthContext = createContext(null);
 
@@ -27,32 +28,29 @@ export const AuthProvider = ({ children }) => {
 
   const fetchUser = async () => {
     try {
-      const response = await axios.get('http://localhost:5001/api/auth/me');
-      setUser(response.data);
+      const userData = await fetchUserService();
+      setUser(userData);
     } catch (error) {
       console.error('Error fetching user:', error);
-      localStorage.removeItem('token');
-      delete axios.defaults.headers.common['Authorization'];
+      // Nie wylogowuj automatycznie, jeśli token istnieje, ale wystąpił błąd
+      setUser(null);
     } finally {
       setLoading(false);
     }
   };
 
   const login = async (email, password) => {
-    const response = await axios.post('http://localhost:5001/api/auth/login', {
-      email,
-      password,
-    });
-    const { token, user } = response.data;
+    const data = await loginService(email, password);
+    const { token, user } = data;
     localStorage.setItem('token', token);
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     setUser(user);
     return user;
   };
 
-  const register = async (userData) => {
-    const response = await axios.post('http://localhost:5001/api/auth/register', userData);
-    const { token, user } = response.data;
+  const register = async (formData) => {
+    const data = await registerService(formData);
+    const { token, user } = data;
     localStorage.setItem('token', token);
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     setUser(user);
@@ -60,8 +58,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    delete axios.defaults.headers.common['Authorization'];
+    logoutService();
     setUser(null);
   };
 
@@ -74,4 +71,4 @@ export const AuthProvider = ({ children }) => {
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}; 
+};

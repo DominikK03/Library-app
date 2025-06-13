@@ -341,20 +341,16 @@ for (let i = 0; i < 80; i++) {
 const seedBooks = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
-    console.log('Connected to MongoDB');
 
     await Book.deleteMany({});
-    console.log('Cleared existing books');
 
     await Book.insertMany(books);
-    console.log('Books seeded successfully');
 
     await mongoose.connection.close();
-    console.log('Database connection closed');
   } catch (error) {
     console.error('Error seeding books:', error);
     process.exit(1);
   }
 };
 
-seedBooks(); 
+seedBooks();

@@ -17,6 +17,7 @@ import Autocomplete from '@mui/material/Autocomplete';
 import { useAuth } from '../contexts/AuthContext';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
+import Modal from '@mui/material/Modal';
 
 // Ustaw token JWT globalnie dla axios jeśli istnieje
 const token = localStorage.getItem('token');
@@ -44,6 +45,19 @@ const LibrarianPanel = () => {
   const [userSearchError, setUserSearchError] = useState('');
   const [userSearchLoading, setUserSearchLoading] = useState(false);
   const [borrowSuccess, setBorrowSuccess] = useState('');
+
+  // --- Nowa sekcja: wypożyczone książki użytkownika ---
+  const [borrowedBooks, setBorrowedBooks] = useState([]);
+  const [borrowedLoading, setBorrowedLoading] = useState(false);
+  const [borrowedError, setBorrowedError] = useState('');
+  const [returnSuccess, setReturnSuccess] = useState('');
+
+  // --- Nowe stany do przedłużania wypożyczenia ---
+  const [extendModalOpen, setExtendModalOpen] = useState(false);
+  const [selectedBook, setSelectedBook] = useState(null);
+  const [extendDays, setExtendDays] = useState(0);
+  const [predictedReturnDate, setPredictedReturnDate] = useState(null);
+  const [extendError, setExtendError] = useState('');
 
   useEffect(() => {
     if (!user || user.role !== 'Librarian') {
@@ -126,6 +140,8 @@ const LibrarianPanel = () => {
     setReservedBooks([]);
     setFoundUser(null);
     setUserSearchLoading(true);
+    setBorrowedBooks([]);
+    setReturnSuccess('');
     try {
       if (!userSearch.membershipId || !userSearch.membershipId.trim()) {
         setUserSearchError('Podaj membershipID');
@@ -137,6 +153,8 @@ const LibrarianPanel = () => {
       });
       setReservedBooks(res.data.books);
       setFoundUser(res.data.user);
+      // pobierz wypożyczone książki
+      fetchBorrowedBooks(res.data.user.membershipId);
     } catch (e) {
       if (e.response && e.response.data && e.response.data.message) {
         setUserSearchError(e.response.data.message);
@@ -145,9 +163,25 @@ const LibrarianPanel = () => {
       } else {
         setUserSearchError('Błąd wyszukiwania użytkownika');
       }
+      setFoundUser(null);
+      setBorrowedBooks([]);
       console.error('Błąd zapytania do /api/books/reserved-by-membership:', e);
     }
     setUserSearchLoading(false);
+  };
+
+  // Pobierz wypożyczone książki po membershipId
+  const fetchBorrowedBooks = async (membershipId) => {
+    setBorrowedLoading(true);
+    setBorrowedError('');
+    setBorrowedBooks([]);
+    try {
+      const res = await axios.get(`/api/users/borrowed-books-by-membership/${membershipId}`);
+      setBorrowedBooks(res.data.borrowedBooks);
+    } catch (e) {
+      setBorrowedError('Błąd pobierania wypożyczonych książek');
+    }
+    setBorrowedLoading(false);
   };
 
   const handleLibrarianBorrow = async (bookId) => {
@@ -159,6 +193,78 @@ const LibrarianPanel = () => {
     } catch (e) {
       setUserSearchError(e.response?.data?.message || 'Błąd podczas wydawania książki');
     }
+  };
+
+  // Przedłuż wypożyczenie (wywołuje istniejący endpoint)
+  const handleLibrarianExtend = async (bookId) => {
+    try {
+      await axios.post(`/api/users/extend-borrowing/${bookId}`, { days: 30 });
+      setReturnSuccess('Wypożyczenie przedłużone o 30 dni.');
+      if (foundUser) fetchBorrowedBooks(foundUser.membershipId);
+    } catch (e) {
+      setReturnSuccess('Błąd przedłużania wypożyczenia.');
+    }
+  };
+
+  // Zwróć książkę (resetuje status i powiązania)
+  const handleLibrarianReturn = async (bookId) => {
+    try {
+      await axios.post(`/api/users/return-book/${bookId}`);
+      setReturnSuccess('Książka została zwrócona.');
+      if (foundUser) fetchBorrowedBooks(foundUser.membershipId);
+    } catch (e) {
+      setReturnSuccess('Błąd zwrotu książki.');
+    }
+  };
+
+  // Obsługa przedłużania wypożyczenia
+  const handleExtendDaysChange = (e) => {
+    const days = parseInt(e.target.value, 10);
+    if (isNaN(days) || days < 0) {
+      setExtendError('Podaj poprawną liczbę dni.');
+      setExtendDays(0);
+      setPredictedReturnDate(null);
+      return;
+    }
+    if (days > 30) {
+      setExtendError('Nie można przedłużyć o więcej niż 30 dni.');
+      setExtendDays(30);
+      return;
+    }
+    setExtendError('');
+    setExtendDays(days);
+
+    if (selectedBook) {
+      const borrowTime = new Date(selectedBook.borrowTime);
+      const defaultReturnDate = new Date(borrowTime);
+      defaultReturnDate.setDate(borrowTime.getDate() + 30); // Domyślny okres wypożyczenia
+      const newReturnDate = new Date(defaultReturnDate);
+      newReturnDate.setDate(defaultReturnDate.getDate() + days);
+      setPredictedReturnDate(newReturnDate.toLocaleDateString());
+    }
+  };
+
+  const handleExtendSubmit = async (bookId) => {
+    try {
+      await axios.post(`/api/users/extend-borrowing/${bookId}`, { days: extendDays });
+      setReturnSuccess('Wypożyczenie przedłużone.');
+      fetchBorrowedBooks(foundUser.membershipId);
+    } catch (e) {
+      setReturnSuccess('Błąd przedłużania wypożyczenia.');
+    }
+  };
+
+  const handleOpenExtendModal = (book) => {
+    setSelectedBook(book);
+    setExtendModalOpen(true);
+    setExtendDays(0);
+    setPredictedReturnDate(null);
+    setExtendError('');
+  };
+
+  const handleCloseExtendModal = () => {
+    setExtendModalOpen(false);
+    setSelectedBook(null);
   };
 
   if (loading) return <Typography align="center">Ładowanie...</Typography>;
@@ -214,7 +320,7 @@ const LibrarianPanel = () => {
       {/* Sekcja rezerwacji użytkownika */}
       <Paper sx={{ p: 3, mb: 4, borderRadius: 3, boxShadow: 3 }}>
         <Typography variant="h5" color="primary" gutterBottom fontWeight="bold">
-          Wydawanie książek z rezerwacji
+          Wydawanie/Zwroty książek
         </Typography>
         <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
           <TextField label="Membership ID" value={userSearch.membershipId} onChange={e => setUserSearch({ membershipId: e.target.value })} size="small" />
@@ -249,6 +355,81 @@ const LibrarianPanel = () => {
         )}
         {borrowSuccess && <Typography color="success.main">{borrowSuccess}</Typography>}
       </Paper>
+      {/* Sekcja wypożyczonych książek użytkownika */}
+      {foundUser && (
+        <Paper sx={{ p: 3, mb: 4, borderRadius: 3, boxShadow: 3 }}>
+          <Typography variant="h5" color="primary" gutterBottom fontWeight="bold">
+            Wypożyczone książki
+          </Typography>
+          {borrowedLoading && <Typography color="text.secondary">Ładowanie wypożyczonych książek...</Typography>}
+          {borrowedError && <Typography color="error">{borrowedError}</Typography>}
+          {borrowedBooks.length === 0 && <Typography color="text.secondary">Brak wypożyczonych książek.</Typography>}
+          <Grid container spacing={2}>
+            {borrowedBooks.map(book => (
+              <Grid item xs={12} sm={6} md={4} key={book._id}>
+                <Card sx={{ borderRadius: 2, boxShadow: 2 }}>
+                  <CardContent>
+                    <Typography variant="h6">{book.name}</Typography>
+                    <Typography variant="body2" color="text.secondary">{book.author}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Data wypożyczenia: {book.borrowTime ? new Date(book.borrowTime).toLocaleDateString() : 'Brak danych'}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Termin zwrotu: {book.dueDate ? new Date(book.dueDate).toLocaleDateString() : (book.borrowTime ? new Date(new Date(book.borrowTime).getTime() + 30*24*60*60*1000).toLocaleDateString() : 'Brak danych')}
+                    </Typography>
+                    <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                      <Button variant="contained" color="primary" size="small" onClick={() => handleOpenExtendModal(book)}>
+                        Przedłuż wypożyczenie
+                      </Button>
+                      <Button variant="contained" color="secondary" size="small" onClick={() => handleLibrarianReturn(book._id)}>
+                        Zwróć książkę
+                      </Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+          {returnSuccess && <Typography color="success.main" sx={{ mt: 2 }}>{returnSuccess}</Typography>}
+
+          {/* Modal for extending borrow */}
+          <Modal open={extendModalOpen} onClose={handleCloseExtendModal}>
+            <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 400, bgcolor: 'background.paper', p: 4, borderRadius: 2, boxShadow: 24 }}>
+              <Typography variant="h6" gutterBottom>Przedłuż wypożyczenie</Typography>
+              {selectedBook && (
+                <>
+                  <Typography variant="body2" gutterBottom>Książka: {selectedBook.name}</Typography>
+                  <Typography variant="body2" gutterBottom>Autor: {selectedBook.author}</Typography>
+                  <TextField
+                    label="Przedłuż o dni"
+                    type="number"
+                    value={extendDays}
+                    onChange={handleExtendDaysChange}
+                    fullWidth
+                    margin="normal"
+                  />
+                  {predictedReturnDate && (
+                    <Typography variant="body2" color="text.secondary">
+                      Przewidywany termin zwrotu: {predictedReturnDate}
+                    </Typography>
+                  )}
+                  {extendError && (
+                    <Typography color="error" variant="body2">{extendError}</Typography>
+                  )}
+                  <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between' }}>
+                    <Button variant="contained" color="primary" onClick={handleExtendSubmit} disabled={extendDays === 0 || !!extendError}>
+                      Zatwierdź
+                    </Button>
+                    <Button variant="outlined" color="secondary" onClick={handleCloseExtendModal}>
+                      Anuluj
+                    </Button>
+                  </Box>
+                </>
+              )}
+            </Box>
+          </Modal>
+        </Paper>
+      )}
     </Container>
   );
 };

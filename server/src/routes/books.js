@@ -17,6 +17,7 @@ router.post('/:id/reserve', auth, bookController.reserveBook);
 router.post('/:id/borrow', auth, bookController.borrowBook);
 router.post('/:id/return', auth, bookController.returnBook);
 router.post('/:id/extend', auth, bookController.extendBorrow);
+router.get('/my', auth, bookController.getMyBooks);
 
 // Librarian routes
 router.get('/reserved-by-user', auth, checkRole(['Librarian']), bookController.getReservedBooksByUser);

@@ -1,13 +1,13 @@
-const User = require('../models/User');
+const UserService = require('../services/UserService');
 const Book = require('../models/Book');
+const BookService = require('../services/BookService');
+const User = require('../models/User');
+const mongoose = require('mongoose');
 
 // Get user profile
 exports.getProfile = async (req, res) => {
     try {
-        const user = await User.findById(req.user.userId)
-            .select('-password')
-            .populate('borrowedBooks')
-            .populate('reservedBooks');
+        const user = await UserService.getProfile(req.user.userId);
         res.json(user);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
@@ -17,12 +17,7 @@ exports.getProfile = async (req, res) => {
 // Update user profile
 exports.updateProfile = async (req, res) => {
     try {
-        const { name, surname, phoneNumber, birthDate } = req.body;
-        const user = await User.findByIdAndUpdate(
-            req.user.userId,
-            { name, surname, phoneNumber, birthDate },
-            { new: true }
-        ).select('-password');
+        const user = await UserService.updateProfile(req.user.userId, req.body);
         res.json(user);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
@@ -33,15 +28,10 @@ exports.updateProfile = async (req, res) => {
 exports.changePassword = async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
-        const user = await User.findById(req.user.userId);
-
-        const isMatch = await user.comparePassword(currentPassword);
-        if (!isMatch) {
+        const success = await UserService.changePassword(req.user.userId, currentPassword, newPassword);
+        if (!success) {
             return res.status(400).json({ message: 'Current password is incorrect' });
         }
-
-        user.password = newPassword;
-        await user.save();
         res.json({ message: 'Password updated successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
@@ -51,23 +41,8 @@ exports.changePassword = async (req, res) => {
 // Get user's books
 exports.getMyBooks = async (req, res) => {
     try {
-        const user = await User.findById(req.user.userId)
-            .populate('borrowedBooks')
-            .populate('reservedBooks');
-        // Upewnij się, że każda książka ma pole dueDate (jeśli nie, wylicz na podstawie borrowTime + 30 dni)
-        const borrowedBooks = user.borrowedBooks.map(book => {
-            let dueDate = book.dueDate;
-            if (!dueDate && book.borrowTime) {
-                const borrowTime = new Date(book.borrowTime);
-                borrowTime.setDate(borrowTime.getDate() + 30);
-                dueDate = borrowTime;
-            }
-            return { ...book.toObject(), dueDate };
-        });
-        res.json({
-            borrowedBooks,
-            reservedBooks: user.reservedBooks
-        });
+        const result = await UserService.getMyBooks(req.user.userId);
+        res.json(result);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }
@@ -77,23 +52,44 @@ exports.getMyBooks = async (req, res) => {
 exports.extendBorrowing = async (req, res) => {
     try {
         const { days } = req.body;
-        const book = await Book.findById(req.params.id);
+        const bookId = req.params.id;
+        const userId = req.user.userId;
+
+        // Convert bookId to ObjectId
+        if (!mongoose.Types.ObjectId.isValid(bookId)) {
+            return res.status(400).json({ message: 'Invalid book ID' });
+        }
+        const objectId = mongoose.Types.ObjectId(bookId);
+
+        const book = await Book.findById(objectId);
 
         if (!book) {
             return res.status(404).json({ message: 'Book not found' });
         }
 
-        if (book.status !== 'Borrowed' || book.borrowedBy.toString() !== req.user.userId) {
+        if (book.status !== 'Borrowed' || String(book.borrowedBy) !== String(userId)) {
             return res.status(400).json({ message: 'Book is not borrowed by you' });
         }
 
-        // Calculate new borrow time
-        const newBorrowTime = new Date(book.borrowTime);
-        newBorrowTime.setDate(newBorrowTime.getDate() + days);
-        book.borrowTime = newBorrowTime;
-        await book.save();
+        const result = await BookService.extendBorrow(bookId, userId, days);
 
-        res.json(book);
+        if (result && result.error === 'invalid_days') {
+            return res.status(400).json({ message: 'Invalid number of days' });
+        }
+
+        if (result && result.error === 'exceeds_max_days') {
+            return res.status(400).json({ message: 'Cannot extend borrowing by more than 30 days' });
+        }
+
+        if (result && result.error === 'book_not_borrowed') {
+            return res.status(400).json({ message: 'Book is not borrowed by the user' });
+        }
+
+        if (!result) {
+            return res.status(404).json({ message: 'Book not found or not borrowed by user' });
+        }
+
+        res.json({ message: 'Borrowing period extended', dueDate: result.dueDate, debt: result.debt });
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }
@@ -102,7 +98,7 @@ exports.extendBorrowing = async (req, res) => {
 // Get all users (Admin only)
 exports.getAllUsers = async (req, res) => {
     try {
-        const users = await User.find().select('-password');
+        const users = await UserService.getAllUsers();
         res.json(users);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
@@ -113,18 +109,14 @@ exports.getAllUsers = async (req, res) => {
 exports.updateUserRole = async (req, res) => {
     try {
         const { role } = req.body;
-        const user = await User.findById(req.params.id);
-        if (!user) {
+        const result = await UserService.updateUserRole(req.params.id, role);
+        if (result.error === 'not_found') {
             return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
         }
-        // Poprawna kolejność: jeśli user jest adminem, nie pozwól na zmianę roli
-        if (user.role === 'Admin') {
+        if (result.error === 'admin_forbidden') {
             return res.status(403).json({ message: 'Nie można zmienić roli innemu administratorowi.' });
         }
-        // Jeśli nie jest adminem, pozwól na zmianę roli
-        user.role = role;
-        await user.save();
-        res.json(user);
+        res.json(result);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }
@@ -134,19 +126,17 @@ exports.updateUserRole = async (req, res) => {
 exports.updateUserRoleByMembershipId = async (req, res) => {
     try {
         const { membershipId, role } = req.body;
-        if (!membershipId || !role) {
+        const result = await UserService.updateUserRoleByMembershipId(membershipId, role);
+        if (result.error === 'missing_data') {
             return res.status(400).json({ message: 'membershipID i rola są wymagane.' });
         }
-        const user = await User.findOne({ membershipId: membershipId.trim().toUpperCase() });
-        if (!user) {
+        if (result.error === 'not_found') {
             return res.status(404).json({ message: 'Nie znaleziono użytkownika o podanym membershipID.' });
         }
-        if (user.role === 'Admin') {
+        if (result.error === 'admin_forbidden') {
             return res.status(403).json({ message: 'Nie można zmienić roli innemu administratorowi.' });
         }
-        user.role = role;
-        await user.save();
-        res.json({ message: 'Rola została zmieniona!', user });
+        res.json({ message: 'Rola została zmieniona!', user: result });
     } catch (error) {
         res.status(500).json({ message: 'Błąd serwera.' });
     }
@@ -156,32 +146,13 @@ exports.updateUserRoleByMembershipId = async (req, res) => {
 exports.deleteAccount = async (req, res) => {
     try {
         const { password } = req.body;
-        const user = await User.findById(req.user.userId);
-        if (!user) {
+        const result = await UserService.deleteAccount(req.user.userId, password);
+        if (result.error === 'not_found') {
             return res.status(404).json({ message: 'Użytkownik nie znaleziony' });
         }
-        const isMatch = await user.comparePassword(password);
-        if (!isMatch) {
+        if (result.error === 'wrong_password') {
             return res.status(400).json({ message: 'Błędne hasło' });
         }
-        // Zmień status książek Reserved/Borrowed na Available
-        await Book.updateMany(
-            { $or: [
-                { borrowedBy: user._id, status: 'Borrowed' },
-                { reservedBy: user._id, status: 'Reserved' }
-            ] },
-            {
-                $set: {
-                    status: 'Available',
-                    borrowedBy: null,
-                    reservedBy: null,
-                    borrowTime: null,
-                    reservationTime: null
-                }
-            }
-        );
-        // Usuń użytkownika
-        await User.findByIdAndDelete(user._id);
         res.json({ message: 'Konto zostało usunięte' });
     } catch (error) {
         res.status(500).json({ message: 'Błąd serwera' });
@@ -192,14 +163,73 @@ exports.deleteAccount = async (req, res) => {
 exports.findByMembershipId = async (req, res) => {
     try {
         const { membershipId } = req.query;
-        if (!membershipId) {
+        const result = await UserService.findByMembershipId(membershipId);
+        if (result.error === 'missing_id') {
             return res.status(400).json({ message: 'Brak membershipID w zapytaniu.' });
         }
-        const user = await User.findOne({ membershipId: membershipId.trim().toUpperCase() }).select('-password');
-        if (!user) {
+        if (result.error === 'not_found') {
             return res.status(404).json({ message: 'Nie znaleziono użytkownika o podanym membershipID.' });
         }
-        res.json(user);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ message: 'Błąd serwera.' });
+    }
+};
+
+// Pobierz wypożyczone książki użytkownika po membershipId (dla bibliotekarza)
+exports.getBorrowedBooksByMembershipId = async (req, res) => {
+    try {
+        const { membershipId } = req.params;
+        if (!membershipId) {
+            return res.status(400).json({ message: 'Brak membershipId w zapytaniu.' });
+        }
+        const user = await User.findOne({ membershipId });
+        if (!user) {
+            return res.status(404).json({ message: 'Nie znaleziono użytkownika o podanym membershipId.' });
+        }
+        await user.populate('borrowedBooks');
+        res.json({
+            user: {
+                id: user._id,
+                name: user.name,
+                surname: user.surname,
+                membershipId: user.membershipId
+            },
+            borrowedBooks: user.borrowedBooks
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Błąd serwera.' });
+    }
+};
+
+// Zwrot książki przez bibliotekarza
+exports.librarianReturnBook = async (req, res) => {
+    try {
+        const { bookId } = req.params;
+        const book = await Book.findById(bookId);
+        if (!book) {
+            return res.status(404).json({ message: 'Nie znaleziono książki.' });
+        }
+        // Zapamiętaj użytkownika przed resetem pól
+        const prevBorrowedBy = book.borrowedBy;
+        const prevReservedBy = book.reservedBy;
+        // Resetuj wszystkie powiązania i daty
+        book.status = 'Available';
+        book.borrowedBy = null;
+        book.borrowTime = null;
+        book.dueDate = null;
+        book.reservedBy = null;
+        book.reservationTime = null;
+        book.reservationExpires = null;
+        await book.save();
+        // Usuń książkę z tablic borrowedBooks i reservedBooks użytkownika
+        if (prevBorrowedBy) {
+            await User.findByIdAndUpdate(prevBorrowedBy, { $pull: { borrowedBooks: book._id } });
+        }
+        if (prevReservedBy) {
+            await User.findByIdAndUpdate(prevReservedBy, { $pull: { reservedBooks: book._id } });
+        }
+        res.json({ message: 'Książka została zwrócona i jest dostępna.' });
     } catch (error) {
         res.status(500).json({ message: 'Błąd serwera.' });
     }

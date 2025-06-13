@@ -6,7 +6,7 @@ import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import axios from 'axios';
+import { fetchBook as fetchBookService, reserveBook as reserveBookService } from '../services/bookService';
 import { useAuth } from '../contexts/AuthContext';
 
 const BookDetails = () => {
@@ -21,13 +21,13 @@ const BookDetails = () => {
   const theme = useTheme();
 
   useEffect(() => {
-    fetchBook();
+    fetchBookData();
   }, [id]);
 
-  const fetchBook = async () => {
+  const fetchBookData = async () => {
     try {
-      const response = await axios.get(`http://localhost:5001/api/books/${id}`);
-      setBook(response.data);
+      const data = await fetchBookService(id);
+      setBook(data);
     } catch (error) {
       setError('Nie udało się pobrać informacji o książce');
     } finally {
@@ -37,10 +37,10 @@ const BookDetails = () => {
 
   const handleReserve = async () => {
     try {
-      await axios.post(`http://localhost:5001/api/books/${id}/reserve`);
+      await reserveBookService(id);
       setModalMessage('Książka została zarezerwowana! Masz 24 godziny na odbiór w bibliotece.');
       setShowModal(true);
-      fetchBook();
+      fetchBookData();
     } catch (error) {
       setError('Nie udało się zarezerwować książki');
     }
