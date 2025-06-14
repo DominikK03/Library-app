@@ -1,6 +1,7 @@
 const BookService = require('../services/BookService');
 const Book = require('../models/Book');
 const User = require('../models/User');
+const { validateBookData } = require('../validators/bookValidator');
 
 // Get all books
 exports.getAllBooks = async (req, res) => {
@@ -28,10 +29,39 @@ exports.getBook = async (req, res) => {
 // Create book (Admin/Librarian only)
 exports.createBook = async (req, res) => {
     try {
-        const book = await BookService.createBook(req.body);
+        const validationError = validateBookData(req.body);
+        if (validationError) {
+            return res.status(400).json({ message: validationError });
+        }
+
+        const { name, author, genre, productionYear, description } = req.body;
+
+        const existingBook = await BookService.findBookByName(name);
+        if (existingBook) {
+            return res.status(400).json({ message: 'Book with this name already exists' });
+        }
+
+        // Prawidłowe przetwarzanie gatunków - usuwamy puste stringi
+        let genresArray;
+        if (typeof genre === 'string') {
+            genresArray = genre.split(',').map(g => g.trim()).filter(g => g !== '');
+        } else if (Array.isArray(genre)) {
+            genresArray = genre.filter(g => g && typeof g === 'string' && g.trim() !== '');
+        } else {
+            genresArray = [];
+        }
+
+        const book = await BookService.createBook({
+            name,
+            author,
+            genre: genresArray,
+            productionYear: Number(productionYear),
+            description
+        });
         res.status(201).json(book);
     } catch (error) {
-        res.status(500).json({ message: 'Server error' });
+        console.error('Error creating book:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
 

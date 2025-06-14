@@ -181,6 +181,10 @@ class BookService {
             }
         };
     }
+
+    static async findBookByName(name) {
+        return Book.findOne({ name });
+    }
 }
 
 module.exports = BookService;

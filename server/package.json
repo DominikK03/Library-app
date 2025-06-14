@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
-    "seed:books": "node src/scripts/seedBooks.js",
+    "seed:books": "node src/scripts/seedBooks_updated.js",
     "seed:users": "node src/scripts/seedUsers.js",
     "seed": "npm run seed:users && npm run seed:books"
   },
