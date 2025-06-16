@@ -73,7 +73,7 @@ const BookDetails = () => {
         </Typography>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 2, bgcolor: 'background.default', borderRadius: 2, p: 2, boxShadow: 1 }}>
           <Typography variant="body1" color="text.secondary">
-            <b>Gatunek:</b> {book?.genre}
+            <b>Gatunek:</b> {Array.isArray(book?.genre) ? book.genre.join(', ') : book?.genre}
           </Typography>
           <Typography variant="body1" color="text.secondary">
             <b>Rok wydania:</b> {book?.productionYear}

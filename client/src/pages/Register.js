@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '@mui/material/styles';
+import { validateNameOrSurname } from '../validators/userValidator';
 
 const Container = styled.div`
   max-width: 420px;
@@ -90,7 +91,7 @@ function Register() {
     email: '',
     password: '',
     name: '',
-    surname: '',
+    surname: ''
   });
   const [error, setError] = useState('');
   const { register } = useAuth();
@@ -105,6 +106,16 @@ function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Walidacja imienia
+    if (!validateNameOrSurname(formData.name)) {
+      setError('Imię musi zaczynać się wielką literą i zawierać tylko litery.');
+      return;
+    }
+    // Walidacja nazwiska
+    if (!validateNameOrSurname(formData.surname)) {
+      setError('Nazwisko musi zaczynać się wielką literą i zawierać tylko litery.');
+      return;
+    }
     try {
       await register(formData);
       navigate('/');

@@ -13,7 +13,7 @@ export const updateProfile = async (data) => {
 };
 
 export const changePassword = async (data) => {
-  const response = await axios.post(`${API_URL}/change-password`, data);
+  const response = await axios.put(`${API_URL}/change-password`, data);
   return response.data;
 };
 
@@ -21,4 +21,3 @@ export const deleteAccount = async (password) => {
   const response = await axios.post(`${API_URL}/delete-account`, { password });
   return response.data;
 };
-

@@ -29,11 +29,16 @@ function Home() {
       .catch(err => console.error(err));
   }, []);
 
-  // Zlicz gatunki i autorów
+  // Zlicz gatunki i autorów - uwzględniając, że genre jest tablicą
   const genreCounts = books.reduce((acc, book) => {
-    if (book.genre) acc[book.genre] = (acc[book.genre] || 0) + 1;
+    if (book.genre && Array.isArray(book.genre)) {
+      book.genre.forEach(g => {
+        if (g) acc[g] = (acc[g] || 0) + 1;
+      });
+    }
     return acc;
   }, {});
+
   const authorCounts = books.reduce((acc, book) => {
     if (book.author) acc[book.author] = (acc[book.author] || 0) + 1;
     return acc;
@@ -42,7 +47,12 @@ function Home() {
   const filteredBooks = books.filter(book => {
     const matchesSearch = (book.name && book.name.toLowerCase().includes(search.toLowerCase())) ||
       (book.author && book.author.toLowerCase().includes(search.toLowerCase()));
-    const matchesGenre = selectedGenre ? book.genre === selectedGenre : true;
+
+    // Sprawdź, czy książka zawiera wybrany gatunek (jeśli jest wybrany)
+    const matchesGenre = selectedGenre
+      ? (Array.isArray(book.genre) && book.genre.includes(selectedGenre))
+      : true;
+
     const matchesAuthor = selectedAuthor ? book.author === selectedAuthor : true;
     return matchesSearch && matchesGenre && matchesAuthor;
   });

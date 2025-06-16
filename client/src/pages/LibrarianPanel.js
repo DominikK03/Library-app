@@ -18,6 +18,8 @@ import { useAuth } from '../contexts/AuthContext';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Modal from '@mui/material/Modal';
+import { FormGroup, FormControlLabel, Checkbox } from '@mui/material';
+import Divider from '@mui/material/Divider';
 
 // Ustaw token JWT globalnie dla axios jeśli istnieje
 const token = localStorage.getItem('token');
@@ -33,7 +35,7 @@ const LibrarianPanel = () => {
   const [error, setError] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editBook, setEditBook] = useState(null);
-  const [form, setForm] = useState({ name: '', author: '', genre: '', productionYear: '', description: '' });
+  const [form, setForm] = useState({ name: '', author: '', genre: [''], productionYear: '', description: '' });
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -46,18 +48,57 @@ const LibrarianPanel = () => {
   const [userSearchLoading, setUserSearchLoading] = useState(false);
   const [borrowSuccess, setBorrowSuccess] = useState('');
 
-  // --- Nowa sekcja: wypożyczone książki użytkownika ---
+  // --- Wypożyczone książki użytkownika ---
   const [borrowedBooks, setBorrowedBooks] = useState([]);
   const [borrowedLoading, setBorrowedLoading] = useState(false);
   const [borrowedError, setBorrowedError] = useState('');
   const [returnSuccess, setReturnSuccess] = useState('');
 
-  // --- Nowe stany do przedłużania wypożyczenia ---
+  // --- Stany do przedłużania wypożyczenia ---
   const [extendModalOpen, setExtendModalOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState(null);
   const [extendDays, setExtendDays] = useState(0);
   const [predictedReturnDate, setPredictedReturnDate] = useState(null);
   const [extendError, setExtendError] = useState('');
+
+  const [formError, setFormError] = useState(null); // Zmieniono nazwę zmiennej z 'error' na 'formError'
+  const [formData, setFormData] = useState({
+    name: '',
+    author: '',
+    genre: '',
+    productionYear: '',
+    description: ''
+  });
+
+  // Zmieniono listę gatunków na pogrupowaną, rozszerzoną wersję
+  const genreCategories = {
+    "Gatunki podstawowe": ['Kryminał', 'Fantasy', 'Sci-Fi', 'Horror', 'Romans', 'Biografia', 'Historyczna', 'Przygodowa'],
+
+    "Literatura piękna i klasyczna": ['Literatura piękna', 'Klasyka', 'Poezja', 'Dramat', 'Powieść historyczna', 'Literatura modernistyczna',
+      'Literatura postmodernistyczna', 'Esej', 'Satyra', 'Literatura faktu'],
+
+    "Gatunki popularne": ['Thriller', 'Powieść detektywistyczna', 'Sensacja', 'Romans historyczny', 'Romans paranormalny',
+      'Urban fantasy', 'Space opera', 'Dystopia', 'Utopia', 'Cyberpunk', 'Steampunk', 'Postapokaliptyczna',
+      'Komedia', 'Tragedia', 'Melodramat', 'Powieść psychologiczna', 'Powieść gotycka'],
+
+    "Literatura dla młodzieży i dzieci": ['Young Adult', 'Middle Grade', 'Literatura dziecięca', 'Baśń', 'Bajka', 'Powieść inicjacyjna',
+      'Powieść młodzieżowa'],
+
+    "Literatura specjalistyczna": ['Reportaż', 'Wspomnienia', 'Autobiografia', 'Pamiętniki', 'Literatura podróżnicza',
+      'Literatura religijna', 'Literatura filozoficzna', 'Literatura naukowa', 'Popularnonaukowa',
+      'Poradnik', 'Podręcznik'],
+
+    "Gatunki niszowe": ['Weird fiction', 'Bizarro fiction', 'Fantastyka slipstream', 'Military sci-fi', 'Hard sci-fi',
+      'Soft sci-fi', 'High fantasy', 'Low fantasy', 'Dark fantasy', 'Realizm magiczny'],
+
+    "Gatunki narodowe": ['Literatura polska', 'Literatura amerykańska', 'Literatura rosyjska', 'Literatura francuska',
+      'Literatura brytyjska', 'Literatura japońska', 'Literatura latynoamerykańska', 'Literatura hiszpańska'],
+
+    "Gatunki mieszane": ['Powieść graficzna', 'Komiks', 'Manga', 'Interaktywna fikcja', 'Fanfiction']
+  };
+
+  // Płaska lista wszystkich gatunków do użycia w innych miejscach
+  const allGenres = Object.values(genreCategories).flat();
 
   useEffect(() => {
     if (!user || user.role !== 'Librarian') {
@@ -81,27 +122,54 @@ const LibrarianPanel = () => {
 
   const handleOpenDialog = (book = null) => {
     setEditBook(book);
-    setForm(book ? { ...book } : { name: '', author: '', genre: '', productionYear: '', description: '' });
+    setForm(book ? { ...book } : { name: '', author: '', genre: [''], productionYear: '', description: '' });
     setDialogOpen(true);
   };
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditBook(null);
   };
-  const handleChange = e => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
   };
-  const handleSubmit = async () => {
+  const handleGenreChange = (e) => {
+    const { value, checked } = e.target;
+    setForm((prev) => {
+      const updatedGenres = checked
+        ? [...prev.genre, value] // Dodaj gatunek, jeśli zaznaczony
+        : prev.genre.filter((genre) => genre !== value); // Usuń gatunek, jeśli odznaczony
+      return { ...prev, genre: updatedGenres };
+    });
+  };
+  const addGenreField = () => {
+    setForm({ ...form, genre: [...form.genre, ''] });
+  };
+  const removeGenreField = (index) => {
+    const updatedGenres = form.genre.filter((_, i) => i !== index);
+    setForm({ ...form, genre: updatedGenres });
+  };
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setFormError(null);
+
     try {
       if (editBook) {
         await axios.put(`/api/books/${editBook._id}`, form);
       } else {
-        await axios.post('/api/books', form);
+        await axios.post('/api/books', {
+          ...form,
+          productionYear: parseInt(form.productionYear, 10)
+        });
       }
       fetchBooks();
       handleCloseDialog();
-    } catch (e) {
-      setError('Błąd zapisu książki');
+    } catch (err) {
+      if (err.response && err.response.data && err.response.data.message) {
+        setFormError(err.response.data.message);
+      } else {
+        setFormError('Wystąpił nieoczekiwany błąd.');
+      }
     }
   };
   const handleDelete = async (id) => {
@@ -267,6 +335,17 @@ const LibrarianPanel = () => {
     setSelectedBook(null);
   };
 
+  const handleAddBook = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post('/api/books', form);
+      setForm({ name: '', author: '', genre: [], productionYear: '', description: '' });
+      alert('Książka została dodana!');
+    } catch (err) {
+      alert('Nie udało się dodać książki. Sprawdź dane i spróbuj ponownie.');
+    }
+  };
+
   if (loading) return <Typography align="center">Ładowanie...</Typography>;
   if (error) return <Typography color="error" align="center">{error}</Typography>;
 
@@ -276,14 +355,42 @@ const LibrarianPanel = () => {
       {/* Formularz dodawania/edycji */}
       <Paper elevation={3} sx={{ p: 3, mb: 4, borderRadius: 3 }}>
         <Typography variant="h6" sx={{ mb: 2 }}>{editBook ? 'Edytuj książkę' : 'Dodaj książkę'}</Typography>
-        <Stack component="form" direction={{ xs: 'column', sm: 'row' }} spacing={4} flexWrap="wrap" alignItems="flex-end" onSubmit={e => { e.preventDefault(); handleSubmit(); }}>
-          <TextField label="Tytuł" name="name" value={form.name} onChange={handleChange} required sx={{ minWidth: 200, flex: 1 }} />
-          <TextField label="Autor" name="author" value={form.author} onChange={handleChange} required sx={{ minWidth: 170, flex: 1 }} />
-          <TextField label="Gatunek" name="genre" value={form.genre} onChange={handleChange} required sx={{ minWidth: 140, flex: 1 }} />
-          <TextField label="Rok wydania" name="productionYear" value={form.productionYear} onChange={handleChange} required sx={{ minWidth: 120, flex: 1 }} />
-          <TextField label="Opis" name="description" value={form.description} onChange={handleChange} multiline minRows={2} sx={{ minWidth: 220, flex: 2, mt: 2 }} />
-          <Button type="submit" variant="contained" color="primary" sx={{ height: 56 }}>{editBook ? 'Zapisz zmiany' : 'Dodaj książkę'}</Button>
-          {editBook && <Button onClick={() => { setEditBook(null); setForm({ name: '', author: '', genre: '', productionYear: '', description: '' }); }} color="secondary" sx={{ height: 56 }}>Anuluj</Button>}
+        {formError && <Typography color="error" sx={{ mb: 2 }}>{formError}</Typography>}
+        <Stack component="form" direction="column" spacing={2} onSubmit={handleSubmit}>
+          <TextField label="Tytuł" name="name" value={form.name} onChange={handleInputChange} required fullWidth />
+          <TextField label="Autor" name="author" value={form.author} onChange={handleInputChange} required fullWidth />
+          <Typography variant="subtitle1" gutterBottom>Gatunki</Typography>
+          <Box sx={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #e0e0e0', borderRadius: '4px', p: 2 }}>
+            {Object.entries(genreCategories).map(([category, genres]) => (
+              <Box key={category} sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1 }}>
+                  {category}
+                </Typography>
+                <Grid container spacing={1}>
+                  {genres.map((genre) => (
+                    <Grid item xs={6} sm={4} key={genre}>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            value={genre}
+                            checked={form.genre.includes(genre)}
+                            onChange={handleGenreChange}
+                            size="small"
+                          />
+                        }
+                        label={genre}
+                      />
+                    </Grid>
+                  ))}
+                </Grid>
+                <Divider sx={{ mt: 1 }} />
+              </Box>
+            ))}
+          </Box>
+
+          <TextField label="Rok wydania" name="productionYear" value={form.productionYear} onChange={handleInputChange} required fullWidth />
+          <TextField label="Opis" name="description" value={form.description} onChange={handleInputChange} multiline minRows={2} fullWidth />
+          <Button type="submit" variant="contained" color="primary">{editBook ? 'Zapisz zmiany' : 'Dodaj książkę'}</Button>
         </Stack>
       </Paper>
       {/* Wyszukiwarka z podpowiedziami */}

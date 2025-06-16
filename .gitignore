@@ -2,3 +2,6 @@ client/node_modules
 server/node_modules
 .DS_Store
 /.idea
+# Ignorowanie plików seedów
+server/src/scripts/seedBooks.js
+server/src/scripts/seedUsers.js

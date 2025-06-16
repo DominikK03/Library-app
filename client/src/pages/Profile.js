@@ -14,6 +14,8 @@ import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
+import { validatePhoneNumber, validateBirthDate, validateNameOrSurname } from '../validators/userValidator';
+
 
 const Profile = () => {
   const { user, updateUser } = useAuth();
@@ -82,6 +84,34 @@ const Profile = () => {
     e.preventDefault();
     setError('');
     setSuccess('');
+    // Walidacja imienia
+    if (!validateNameOrSurname(formData.name)) {
+      setError('Imię musi zaczynać się wielką literą i zawierać tylko litery.');
+      return;
+    }
+    // Walidacja nazwiska
+    if (!validateNameOrSurname(formData.surname)) {
+      setError('Nazwisko musi zaczynać się wielką literą i zawierać tylko litery.');
+      return;
+    }
+    // Walidacja numeru telefonu
+    if (!validatePhoneNumber(formData.phoneNumber)) {
+      setError('Numer telefonu musi składać się z dokładnie 9 cyfr');
+      return;
+    }
+    if(!validateNameOrSurname(formData.name)) {
+      setError('Imię musi zaczynać się wielką literą i zawierać tylko litery.');
+      return;
+    }
+    if(!validateNameOrSurname(formData.surname)) {
+      setError('Nazwisko musi zaczynać się wielką literą i zawierać tylko litery.');
+      return;
+    }
+    // Walidacja daty urodzenia
+    if (!validateBirthDate(formData.birthDate)) {
+      setError('Data urodzenia musi być w zakresie 1925-2025 i w formacie RRRR-MM-DD');
+      return;
+    }
     try {
       const updated = await updateProfile(formData);
       setProfile(updated);
@@ -143,6 +173,7 @@ const Profile = () => {
         Profil użytkownika
       </Typography>
       <Collapse in={!!success}><Alert severity="success" sx={{ mb: 2 }}>{success}</Alert></Collapse>
+      <Collapse in={!!error && isEditing}><Alert severity="error" sx={{ mb: 2 }}>{error}</Alert></Collapse>
       <Collapse in={!!error && !isEditing && !isPasswordFormOpen}><Alert severity="error" sx={{ mb: 2 }}>{error}</Alert></Collapse>
       <Box sx={{ p: 3, bgcolor: 'background.paper', borderRadius: 2, boxShadow: 2, mb: 4 }}>
         <Typography variant="h6" gutterBottom>Dane osobowe</Typography>
@@ -154,7 +185,7 @@ const Profile = () => {
               gap: 2,
               alignItems: 'center',
               mb: 2,
-              bgcolor: 'background.default', // zamiast stałego koloru
+              bgcolor: 'background.default',
               borderRadius: 2,
               p: 2,
               boxShadow: 1,
